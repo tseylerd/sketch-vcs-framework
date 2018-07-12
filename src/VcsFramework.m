@@ -83,7 +83,7 @@
             dispatch_async(dispatch_get_main_queue(), ^(void){
                 [VcsFramework showAlert:message];
                 NSURL* url = document.fileURL;
-                [document readFromURL:url ofType:document.fileType error:nil];
+                [document revertToContentsOfURL:url ofType:document.fileType error:nil];
             });
         }
     }];
