@@ -8,6 +8,8 @@
 @property NSButton *okButton;
 @end
 
+// todo memory management
+
 @implementation TextFieldDelegate
 - (void)textDidChange:(NSNotification *)notification {
     NSTextView *textField = [notification object];
@@ -29,6 +31,25 @@
     [alert setMessageText:@"Git Plugin"];
     [alert setInformativeText:message];
     [alert runModal];
+}
+
+
++ (NSModalSession) showProgressForAction: (NSString*) action onDocument: (MSDocument*) document {
+    NSProgressIndicator* indicator = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(0, 0, 100, 100)];
+    [indicator setStyle:NSProgressIndicatorSpinningStyle];
+    NSPanel *panel = [[NSPanel alloc]
+                       initWithContentRect:NSMakeRect(0, 0, 100, 100)
+                       styleMask:NSWindowStyleMaskBorderless
+                       backing:NSBackingStoreBuffered
+                       defer:NO];
+    [panel setOpaque:NO];
+    [panel setFloatingPanel:YES];
+    [panel setBackgroundColor:[NSColor colorWithCalibratedWhite:1.0 alpha:0.8]];
+    
+    [panel setContentView:indicator];
+    [indicator startAnimation:nil];
+    NSModalSession session = [[NSApplication sharedApplication] beginModalSessionForWindow:panel];
+    return session;
 }
 
 + (NSString*) getUserInput: (NSString*) message {
@@ -58,7 +79,6 @@
 
 + (void) exec: (NSArray*) args client: (NSURL *)url_client document: (MSDocument *) document {
     NSString *launchPath = [NSString stringWithFormat:@"%@/%@", url_client.path.stringByRemovingPercentEncoding, @"run-client.sh"];
-    [VcsFramework showAlert:launchPath];
     NSArray *firstArgs = [NSArray arrayWithObjects: launchPath, nil];
     NSArray *allArgs = [firstArgs arrayByAddingObjectsFromArray:args];
     NSTask *task = [[NSTask alloc] init];
@@ -69,6 +89,8 @@
     NSPipe* err_pipe = [NSPipe pipe];
     [task setStandardOutput:out_pipe];
     [task setStandardError:err_pipe];
+    
+    NSModalSession panel = [VcsFramework showProgressForAction:@"action" onDocument:document];
     
     [task setTerminationHandler: ^(NSTask *task){
         NSData* errData = [[err_pipe fileHandleForReading] readDataToEndOfFile];
@@ -81,6 +103,7 @@
         }
         if ([message length]) {
             dispatch_async(dispatch_get_main_queue(), ^(void){
+                [[NSApplication sharedApplication] endModalSession:panel];
                 [VcsFramework showAlert:message];
                 NSURL* url = document.fileURL;
                 [document revertToContentsOfURL:url ofType:document.fileType error:nil];
@@ -100,7 +123,6 @@
         }
         
         NSString* documentPath = [[documentUrl path] stringByRemovingPercentEncoding];
-        [VcsFramework showAlert:documentPath];
 
         SEL selectorUrlForResourceNamed = NSSelectorFromString(@"urlForResourceNamed:");
         NSURL* (*urlForResourceNamed)(id, SEL, id) = (void *)[plugin methodForSelector:selectorUrlForResourceNamed];
